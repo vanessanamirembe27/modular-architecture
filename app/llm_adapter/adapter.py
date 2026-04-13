@@ -33,41 +33,43 @@ def _get_client():
     return _CLIENT
 
 
-def _build_schema_description(schema_map):
+def _format_schema_description(schema_map):
     """
-    Convert a {table_name: {col: type}} dict into a readable string
-    for the model prompt.
+    Convert a schema map into a human-readable string for the model prompt.
 
     Args:
-        schema_map (dict): {table_name: {column_name: sqlite_type}}
+        schema_map (dict): A dictionary mapping table names to column schemas.
+                           Example: {table_name: {column_name: sqlite_type}}
 
     Returns:
-        str
+        str: A formatted string describing the database schema.
     """
-    lines = []
-    for table, columns in schema_map.items():
-        col_list = ", ".join(f"{col} ({dtype})" for col, dtype in columns.items())
-        lines.append(f"  Table '{table}': {col_list}")
-    return "\n".join(lines)
+    schema_lines = []
+    for table_name, column_schemas in schema_map.items():
+        column_descriptions = [
+            f"{col_name} ({col_type})" for col_name, col_type in column_schemas.items()
+        ]
+        schema_lines.append(f"  Table '{table_name}': {', '.join(column_descriptions)}")
+    return "\n".join(schema_lines)
 
-
-def generate_sql(question, schema_map):
+def generate_sql_query(question, schema_map):
     """
-    Ask Claude to produce a SQL SELECT query for the given question.
+    Generate a SQL SELECT query based on a natural language question and database schema.
 
     Args:
-        question (str): Natural language question from the user.
-        schema_map (dict): {table_name: {column_name: sqlite_type}}
-                           Describes the available tables and columns.
+        question (str): The natural language question to answer.
+        schema_map (dict): A dictionary mapping table names to column schemas.
+                           Example: {table_name: {column_name: sqlite_type}}
 
     Returns:
-        str: A SQL SELECT statement (not yet validated or executed).
+        str: The generated SQL SELECT query.
 
     Raises:
-        ValueError: If the model response cannot be parsed into SQL.
-        anthropic.APIError: On API communication failures.
+        ValueError: If the model response cannot be parsed into a valid SQL query.
+        anthropic.APIError: If there is an error communicating with the Anthropic API.
     """
-    schema_description = _build_schema_description(schema_map)
+    
+    schema_description = _format_schema_description(schema_map)
 
     prompt = f"""You are a SQL generation assistant. Given a database schema and a
 natural language question, return ONLY a valid SQLite SELECT statement.
@@ -93,19 +95,15 @@ SQL:"""
         messages=[{"role": "user", "content": prompt}],
     )
 
-    sql = message.content[0].text.strip()
+    sql_query = response.content[0].text.strip()
 
-    # Strip accidental markdown code fences the model might still produce
-    if sql.startswith("```"):
-        lines = sql.splitlines()
-        sql = "\n".join(
-            line for line in lines
-            if not line.startswith("```")
+    # Remove any accidental markdown code fences from the model response
+    if sql_query.startswith("```"):
+        sql_query = "\n".join(
+            line for line in sql_query.splitlines() if not line.startswith("```")
         ).strip()
 
-    if not sql.upper().startswith("SELECT"):
-        raise ValueError(
-            f"LLM returned an unexpected response (not a SELECT): {sql!r}"
-        )
+    if not sql_query.upper().startswith("SELECT"):
+        raise ValueError(f"LLM returned an unexpected response (not a SELECT): {sql_query!r}")
 
-    return sql
+    return sql_query
