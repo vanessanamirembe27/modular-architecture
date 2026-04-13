@@ -3,73 +3,69 @@ import sqlite3
 
 def get_connection(db_path):
     """
-    Open and return a connection to the SQLite database.
+    Establish and return a connection to the SQLite database.
 
     Args:
-        db_path (str): Path to the SQLite .db file.
+        db_path (str): Path to the SQLite database file.
 
     Returns:
-        sqlite3.Connection
+        sqlite3.Connection: Connection object for the database.
     """
     return sqlite3.connect(db_path)
 
 
-def execute_non_query(db_path, sql, params=()):
+def execute_sql(db_path, sql, params=None):
     """
-    Execute a SQL statement that does not return rows (CREATE, DROP, etc).
+    Execute a SQL statement that does not return any result rows.
 
     Args:
-        db_path (str): Path to the SQLite database.
+        db_path (str): Path to the SQLite database file.
         sql (str): SQL statement to execute.
-        params (tuple): Optional bind parameters.
+        params (tuple, optional): Parameters to bind to the SQL statement. Defaults to None.
     """
-    conn = get_connection(db_path)
-    try:
-        conn.execute(sql, params)
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(sql, params or ())
         conn.commit()
-    finally:
-        conn.close()
 
 
-def insert_rows(db_path, table_name, columns, rows):
+def insert_records(db_path, table_name, columns, records):
     """
-    Bulk-insert rows into a table using hand-built SQL (no df.to_sql).
+    Insert multiple records into a table using a single SQL statement.
 
     Args:
-        db_path (str): Path to the SQLite database.
-        table_name (str): Target table name.
-        columns (list[str]): Column names matching the row tuples.
-        rows (list[tuple]): Row data to insert.
+        db_path (str): Path to the SQLite database file.
+        table_name (str): Name of the table to insert records into.
+        columns (list): List of column names for the table.
+        records (list): List of tuples, where each tuple represents a record to insert.
     """
-    placeholders = ", ".join("?" * len(columns))
-    col_names = ", ".join(columns)
-    sql = f"INSERT INTO {table_name} ({col_names}) VALUES ({placeholders})"
+    placeholders = ', '.join(['?'] * len(columns))
+    column_names = ', '.join(columns)
+    sql = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
 
-    conn = get_connection(db_path)
-    try:
-        conn.executemany(sql, rows)
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.executemany(sql, records)
         conn.commit()
-    finally:
-        conn.close()
 
 
 def fetch_all(db_path, sql, params=()):
     """
-    Execute a SELECT and return all result rows with column names.
+    Execute a SELECT statement and return all result rows along with column names.
 
     Args:
-        db_path (str): Path to the SQLite database.
+        db_path (str): Path to the SQLite database file.
         sql (str): SELECT statement to execute.
-        params (tuple): Optional bind parameters.
+        params (tuple, optional): Parameters to bind to the SQL statement. Defaults to None.
 
     Returns:
-        tuple: (columns: list[str], rows: list[tuple])
+        tuple: A tuple containing two elements:
+            - columns (list): List of column names.
+            - rows (list): List of tuples, where each tuple represents a result row.
     """
-    conn = get_connection(db_path)
-    try:
-        cursor = conn.execute(sql, params)
-        columns = [desc[0] for desc in cursor.description]
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(sql, params or ())
+        columns = [column[0] for column in cursor.description]
         rows = cursor.fetchall()
         return columns, rows
-    finally:
-        conn.close()
