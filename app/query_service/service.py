@@ -14,27 +14,28 @@ the database.  The LLM Adapter never executes SQL directly.
 """
 
 from app.validator.sql_validator import validate_query
-from app.db.database import fetch_all
+from app.db.database import fetch_all_records
 from app.utils.logger import log_error, log_info
 
 
-def run_query(sql, db_path):
+def run_sql_query(sql_query, db_path):
     """
-    Step 1: Validate a user-supplied SQL query, then execute it.
+    Execute a user-supplied SQL query after validation.
 
     Args:
-        sql (str): Raw SQL string entered by the user.
+        sql_query (str): Raw SQL query entered by the user.
         db_path (str): Path to the SQLite database.
 
     Returns:
-        dict: {
-            "success": bool,
-            "columns": list[str],
-            "rows": list[tuple],
-            "error": str | None
-        }
+        dict: A dictionary containing the query result or error details.
+            {
+                "success": bool,
+                "columns": list[str],
+                "rows": list[tuple],
+                "error": str | None
+            }
     """
-    validation = validate_query(sql, db_path)
+    validation_result = validate_query(sql_query, db_path)
     if not validation["valid"]:
         return {
             "success": False,
@@ -64,25 +65,22 @@ def run_query(sql, db_path):
 
 def run_llm_query(question, db_path, generate_fn):
     """
-    Step 2: Ask the LLM Adapter to generate SQL from a natural language
-    question, validate it, then execute it.
-
-    The generate_fn parameter accepts the schema description and question
-    and returns a SQL string — it never touches the database.
+    Generate SQL query from a natural language question using the LLM Adapter,
+    validate it, and execute it.
 
     Args:
         question (str): Natural language question from the user.
         db_path (str): Path to the SQLite database.
-        generate_fn (callable): Function with signature
-                                generate_fn(question, db_path) -> str
-                                (provided by llm_adapter.adapter)
+        generate_sql_fn (callable): Function with signature:
+                                    generate_sql_fn(question, db_path) -> str
+                                    (provided by llm_adapter.adapter)
 
     Returns:
-        dict: Same shape as run_query — adds "generated_sql" key so the
-              caller can show the user what SQL was produced.
+        dict: Same shape as run_sql_query, with an additional "generated_sql" key
+              to show the user the generated SQL query.
     """
     try:
-        sql = generate_fn(question, db_path)
+        generated_sql = generate_sql_fn(question, db_path)
     except Exception as e:
         log_error(str(e))
         return {
@@ -93,6 +91,6 @@ def run_llm_query(question, db_path, generate_fn):
             "error": f"LLM error: {str(e)}",
         }
 
-    result = run_query(sql, db_path)
-    result["generated_sql"] = sql
-    return result
+    query_result = run_sql_query(generated_sql, db_path)
+    query_result["generated_sql"] = generated_sql
+    return query_result
