@@ -69,25 +69,17 @@ def get_columns_and_rows(df):
 
 def ingest_csv(file_path, table_name, db_path):
     """
-    Main CSV ingestion function.
-
-    Steps:
-    1. Load the CSV file
-    2. Infer schema from the DataFrame
-    3. Check whether the table already exists
-    4. If it does not exist, create it
-    5. If it exists, compare schemas
-    6. If schemas match, append rows
-    7. If schemas do not match, create a new versioned table (e.g. users_1)
-    8. Insert rows into the database
+    Ingest CSV data into a SQLite database table.
 
     Args:
-        file_path (str): Path to CSV file
-        table_name (str): Name of table to create/append to
-        db_path (str): Path to SQLite database
+        file_path (str): Path to the CSV file.
+        table_name (str): Name of the target table.
+        db_path (str): Path to the SQLite database.
 
     Returns:
-        dict: Result message and status
+        dict: A dictionary containing the ingestion result.
+            - success (bool): Indicates whether the ingestion was successful.
+            - message (str): A message describing the ingestion result.
     """
     try:
         # Step 1: Load the CSV
